@@ -1,19 +1,22 @@
+import os
 import docx
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Mm, Pt, RGBColor, Cm, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 
 
-def set_cell_background(cell, hex_color):
+def set_cell_background(cell, hex_color: str):
+    """Установка фонового цвета ячейки таблицы."""
     tcPr = cell._tc.get_or_add_tcPr()
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{hex_color}"/>')
     tcPr.append(shd)
 
 
 def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+    """Настройка внутренних отступов ячейки таблицы (в dxa)."""
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
         f'<w:tcMar {nsdecls("w")}>'
@@ -26,107 +29,254 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     tcPr.append(tcMar)
 
 
+def add_page_number(run):
+    """Вставка динамического поля номера страницы по ГОСТ 7.32."""
+    fldSimple = OxmlElement('w:fldSimple')
+    fldSimple.set(qn('w:instr'), 'PAGE')
+    run._r.append(fldSimple)
+
+
+def add_gost_paragraph(
+    doc: Document,
+    text: str = "",
+    bold: bool = False,
+    italic: bool = False,
+    align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+    space_before: int = 0,
+    space_after: int = 0,
+    first_line_indent: float = 1.25,
+    line_spacing: float = 1.5,
+    font_size: int = 14
+):
+    """Добавление абзаца текста, оформленного строго по ГОСТ 7.32-2017."""
+    p = doc.add_paragraph()
+    p.alignment = align
+    p.paragraph_format.line_spacing = line_spacing
+    p.paragraph_format.space_before = Pt(space_before)
+    p.paragraph_format.space_after = Pt(space_after)
+    p.paragraph_format.first_line_indent = Cm(first_line_indent) if first_line_indent > 0 else 0
+
+    if text:
+        r = p.add_run(text)
+        r.font.name = 'Times New Roman'
+        r.font.size = Pt(font_size)
+        r.font.bold = bold
+        r.font.italic = italic
+        r.font.color.rgb = RGBColor(0, 0, 0)
+
+    return p
+
+
+def add_gost_heading(doc: Document, title: str, level: int = 1, is_structural: bool = False):
+    """
+    Добавление заголовка по ГОСТ 7.32-2017:
+    - Структурные заголовки (ВВЕДЕНИЕ, ЗАКЛЮЧЕНИЕ): по центру, прописными буквами, без точки.
+    - Разделы: с абзацного отступа 1.25 см, полужирным, без точки.
+    """
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(14)
+    p.paragraph_format.space_after = Pt(6)
+    p.paragraph_format.line_spacing = 1.5
+
+    if is_structural:
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.first_line_indent = 0
+        r = p.add_run(title.upper())
+    else:
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p.paragraph_format.first_line_indent = Cm(1.25)
+        r = p.add_run(title)
+
+    r.font.name = 'Times New Roman'
+    r.font.size = Pt(14)
+    r.font.bold = True
+    r.font.color.rgb = RGBColor(0, 0, 0)
+    return p
+
+
+def add_table_caption(doc: Document, number: int, title: str):
+    """
+    Оформление названия таблицы по ГОСТ 7.32-2017 (п. 6.8):
+    Помещается над таблицей слева, без абзацного отступа, формат:
+    Таблица N — Название таблицы
+    """
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p.paragraph_format.first_line_indent = 0
+    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.space_after = Pt(4)
+    p.paragraph_format.line_spacing = 1.15
+
+    r = p.add_run(f"Таблица {number} — {title}")
+    r.font.name = 'Times New Roman'
+    r.font.size = Pt(12)
+    r.font.bold = False
+    r.font.color.rgb = RGBColor(0, 0, 0)
+    return p
+
+
 def create_report():
     doc = Document()
 
-    # Поля страницы: по 2 см (ок. 1134 dxa)
-    for section in doc.sections:
-        section.top_margin = Inches(0.8)
-        section.bottom_margin = Inches(0.8)
-        section.left_margin = Inches(0.8)
-        section.right_margin = Inches(0.8)
+    # 1. ПАРАМЕТРЫ СТРАНИЦЫ ПО ГОСТ 7.32-2017
+    # Формат А4, левое поле 30 мм, правое 15 мм, верхнее 20 мм, нижнее 20 мм
+    section = doc.sections[0]
+    section.page_width = Mm(210)
+    section.page_height = Mm(297)
+    section.top_margin = Mm(20)
+    section.bottom_margin = Mm(20)
+    section.left_margin = Mm(30)
+    section.right_margin = Mm(15)
 
-    # Настройка базового стиля текста
+    # Титульный лист без номера, нумерация со 2-й страницы внизу по центру
+    section.different_first_page_header_footer = True
+    footer = section.footer
+    footer_p = footer.paragraphs[0]
+    footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_p.paragraph_format.space_before = 0
+    footer_p.paragraph_format.space_after = 0
+    footer_run = footer_p.add_run()
+    footer_run.font.name = 'Times New Roman'
+    footer_run.font.size = Pt(11)
+    footer_run.font.color.rgb = RGBColor(0, 0, 0)
+    add_page_number(footer_run)
+
+    # Базовый стиль шрифта
     normal_style = doc.styles['Normal']
     normal_style.font.name = 'Times New Roman'
-    normal_style.font.size = Pt(12)
-    normal_style.font.color.rgb = RGBColor(0x22, 0x22, 0x22)
-    normal_style.paragraph_format.line_spacing = 1.15
-    normal_style.paragraph_format.space_after = Pt(4)
+    normal_style.font.size = Pt(14)
+    normal_style.font.color.rgb = RGBColor(0, 0, 0)
+    normal_style.paragraph_format.line_spacing = 1.5
+    normal_style.paragraph_format.space_before = Pt(0)
+    normal_style.paragraph_format.space_after = Pt(0)
+    normal_style.paragraph_format.first_line_indent = Cm(1.25)
+    normal_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
-    # --- ТИТУЛЬНЫЙ БЛОК ---
-    p_inst = doc.add_paragraph()
-    p_inst.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_inst = p_inst.add_run("МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РФ\nНОВОСИБИРСКИЙ ГОСУДАРСТВЕННЫЙ УНИВЕРСИТЕТ\nВЫСШИЙ КОЛЛЕДЖ ИНФОРМАТИКИ (ВКИ НГУ)")
-    r_inst.font.size = Pt(10)
-    r_inst.font.bold = True
-    r_inst.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(20)
-
-    p_title = doc.add_paragraph()
-    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_title1 = p_title.add_run("ОТЧЕТ ПО ЛАБОРАТОРНОЙ РАБОТЕ №2\n")
-    r_title1.font.size = Pt(16)
-    r_title1.font.bold = True
-    r_title1.font.color.rgb = RGBColor(0x1F, 0x38, 0x64)
-
-    r_title2 = p_title.add_run("Тема: «Юнит-тестирование проектов и автоматизация проверок»\n")
-    r_title2.font.size = Pt(13)
-    r_title2.font.bold = True
-
-    r_title3 = p_title.add_run("Дисциплина: Проектирование и тестирование программных модулей (ПТПМ)")
-    r_title3.font.size = Pt(11)
-    r_title3.font.italic = True
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(30)
-
-    p_meta = doc.add_paragraph()
-    p_meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    r_meta = p_meta.add_run(
-        "Выполнил: студент Романов Р. О.\n"
-        "Специальность: Информационные системы и программирование\n"
-        "Проверил: Мастер практики\n"
-        "Репозиторий: https://github.com/romanovro-arch/PTPM-VKI\n"
-        "Ветка: Lab2"
+    # =========================================================================
+    # ТИТУЛЬНЫЙ ЛИСТ (ГОСТ 7.32-2017)
+    # =========================================================================
+    p_header = add_gost_paragraph(
+        doc,
+        "МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ\n"
+        "Федеральное государственное автономное образовательное учреждение высшего образования\n"
+        "«Новосибирский национальный исследовательский государственный университет»\n"
+        "Высший колледж информатики",
+        bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER,
+        first_line_indent=0,
+        line_spacing=1.0,
+        font_size=11,
+        space_after=40
     )
-    r_meta.font.size = Pt(11)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(40)
+    add_gost_paragraph(
+        doc,
+        "ОТЧЕТ\n"
+        "ПО ЛАБОРАТОРНОЙ РАБОТЕ № 2\n"
+        "по дисциплине «Проектирование и тестирование программных модулей»\n"
+        "Тема: «Юнит-тестирование проектов и автоматизация проверок»",
+        bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER,
+        first_line_indent=0,
+        line_spacing=1.3,
+        font_size=14,
+        space_before=30,
+        space_after=60
+    )
 
-    p_city = doc.add_paragraph()
-    p_city.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_city = p_city.add_run("Новосибирск, 2026")
-    r_city.font.size = Pt(11)
-    r_city.font.bold = True
+    # Блок подписей студента и преподавателя (справа)
+    p_meta = add_gost_paragraph(
+        doc,
+        "Выполнил:\n"
+        "студент Романов Р. О.\n"
+        "Специальность: 09.02.07 Информационные\n"
+        "системы и программирование\n\n"
+        "Проверил:\n"
+        "преподаватель (мастер практики)\n"
+        "_________________________\n",
+        bold=False,
+        align=WD_ALIGN_PARAGRAPH.RIGHT,
+        first_line_indent=0,
+        line_spacing=1.15,
+        font_size=12,
+        space_before=20,
+        space_after=90
+    )
+
+    add_gost_paragraph(
+        doc,
+        "Новосибирск, 2026",
+        bold=False,
+        align=WD_ALIGN_PARAGRAPH.CENTER,
+        first_line_indent=0,
+        line_spacing=1.0,
+        font_size=12,
+        space_before=40
+    )
 
     doc.add_page_break()
 
-    # --- 1. ВВЕДЕНИЕ ---
-    h1 = doc.add_heading("1. Цель и задачи работы", level=1)
-    h1.style.font.name = 'Times New Roman'
-    h1.style.font.size = Pt(14)
-    h1.style.font.color.rgb = RGBColor(0x1F, 0x38, 0x64)
+    # =========================================================================
+    # ВВЕДЕНИЕ
+    # =========================================================================
+    add_gost_heading(doc, "ВВЕДЕНИЕ", is_structural=True)
 
-    doc.add_paragraph(
-        "Цель работы — освоение методологии модульного тестирования (Unit Testing) с использованием стандартного "
-        "фреймворка unittest в Python, приобретение навыков декомпозиции требований, разработки тестовых сценариев "
-        "для граничных и эквивалентных условий, а также выявление и локализация логических дефектов в предоставленном модуле."
-    )
-    doc.add_paragraph(
-        "В ходе работы решены следующие задачи:\n"
-        "1. Подготовлен и проверен автономный набор из 22 юнит-тестов для собственного метода регистрации пользователей (ЛР1).\n"
-        "2. Проанализирован предоставленный модуль расчета доставки (src/delivery.py), восстановлены бизнес-требования к логике расчета стоимости и сроков транспортировки.\n"
-        "3. Разработан набор из 23 юнит-тестов для модуля доставки, покрывающий все классы эквивалентности и граничные значения.\n"
-        "4. Зафиксированы и локализованы дефекты, приводящие к падению тестов на предоставленном коде доставки."
+    add_gost_paragraph(
+        doc,
+        "Модульное тестирование (Unit Testing) представляет собой фундаментальный метод обеспечения качества "
+        "программного обеспечения, позволяющий проверять корректность работы отдельных функций, методов и классов "
+        "в изолированной среде. Регулярный запуск автоматизированных тестов снижает риски возникновения регрессионных дефектов "
+        "и повышает предсказуемость поведения программного комплекса."
     )
 
-    # --- 2. ПУНКТ А ---
-    h2 = doc.add_heading("2. Пункт А: Общее количество тестов и итоговая статистика прохождения", level=1)
-    h2.style.font.name = 'Times New Roman'
-    h2.style.font.size = Pt(14)
-    h2.style.font.color.rgb = RGBColor(0x1F, 0x38, 0x64)
-
-    doc.add_paragraph(
-        "Всего в рамках лабораторной работы разработано 45 юнит-тестов, разделенных на два независимых тестовых модуля:"
+    add_gost_paragraph(
+        doc,
+        "Цель работы — освоение методологии разработки юнит-тестов на базе стандартной библиотеки unittest в языке Python, "
+        "применение техник тест-дизайна (эквивалентное разбиение, анализ граничных значений), а также обнаружение, "
+        "локализация и протоколирование дефектов логики в предоставленном учебном программном модуле."
     )
 
-    # Таблица статистики
+    add_gost_paragraph(doc, "Для достижения поставленной цели в рамках работы решены следующие задачи:")
+    
+    tasks = [
+        "разработать комплект независимых юнит-тестов (не менее 10) для собственного программного метода валидации учетных данных из лабораторной работы № 1;",
+        "проанализировать исходный код и бизнес-требования к предоставленному модулю расчета стоимости и сроков транспортировки отправлений (src/delivery.py);",
+        "спроектировать комплекс юнит-тестов (не менее 10) для проверки всех классов эквивалентности, граничных значений и исключительных ситуаций в модуле доставки;",
+        "выполнить прогон разработанных наборов тестов с применением механизма автоматического обнаружения (discover) фреймворка unittest;",
+        "зафиксировать упавшие тестовые сценарии, локализовать программные ошибки в коде и сформулировать обоснованные варианты их исправления."
+    ]
+    for idx, task in enumerate(tasks):
+        terminator = "." if idx == len(tasks) - 1 else ";"
+        add_gost_paragraph(
+            doc,
+            f"- {task}{terminator}",
+            align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+            first_line_indent=1.25,
+            line_spacing=1.5
+        )
+
+    # =========================================================================
+    # 1 ПУНКТ А: СТАТИСТИКА ПРОХОЖДЕНИЯ ТЕСТОВ
+    # =========================================================================
+    add_gost_heading(doc, "1 Общее количество тестов и итоговая статистика прохождения (Пункт А)")
+
+    add_gost_paragraph(
+        doc,
+        "В соответствии с требованиями к лабораторной работе № 2 были подготовлены два автономных тестовых комплекта, "
+        "размещенных в каталоге tests/. Комплекты покрывают как собственный метод регистрации пользователей из лабораторной "
+        "работы № 1, так и предоставленный модуль расчета параметров доставки. Всего разработан 45 юнит-тестов."
+    )
+
+    add_table_caption(doc, 1, "Итоговая статистика прохождения юнит-тестов проекта")
+
+    # Таблица 1 по ГОСТу
     table_stat = doc.add_table(rows=4, cols=6)
     table_stat.alignment = WD_TABLE_ALIGNMENT.CENTER
     table_stat.style = 'Table Grid'
 
-    headers = [
+    col_widths_t1 = [Inches(1.8), Inches(1.8), Inches(0.8), Inches(0.9), Inches(0.9), Inches(0.9)]
+
+    t1_headers = [
         "Тестируемый модуль",
         "Файл тестов",
         "Всего тестов",
@@ -134,192 +284,309 @@ def create_report():
         "Упало (Fail/Err)",
         "Успешность"
     ]
-    for i, h in enumerate(headers):
-        cell = table_stat.cell(0, i)
+
+    for col_idx, h in enumerate(t1_headers):
+        cell = table_stat.cell(0, col_idx)
         cell.text = h
-        set_cell_background(cell, "1F3864")
-        set_cell_margins(cell, top=120, bottom=120, left=100, right=100)
+        cell.width = col_widths_t1[col_idx]
+        set_cell_background(cell, "F2F2F2")
+        set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in p.runs:
-            run.font.bold = True
-            run.font.size = Pt(10)
-            run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        for r in p.runs:
+            r.font.name = 'Times New Roman'
+            r.font.size = Pt(11)
+            r.font.bold = True
+            r.font.color.rgb = RGBColor(0, 0, 0)
 
-    data_stat = [
+    t1_data = [
         ("ЛР1: Регистрация пользователей", "tests/test_registration.py", "22", "22", "0", "100.0%"),
-        ("ЛР2: Модуль расчета доставки", "tests/test_delivery.py", "23", "19", "4", "82.6%"),
-        ("ИТОГО ПО ПРОЕКТУ", "Все модули", "45", "41", "4", "91.1%")
+        ("ЛР2: Расчет стоимости доставки", "tests/test_delivery.py", "23", "19", "4", "82.6%"),
+        ("ИТОГО ПО ПРОЕКТУ", "Все модули каталога tests/", "45", "41", "4", "91.1%")
     ]
 
-    for row_idx, row_data in enumerate(data_stat, start=1):
-        bg_col = "F2F4F7" if row_idx % 2 == 1 else "FFFFFF"
-        if row_idx == 3:
-            bg_col = "D9E1F2"
+    for row_idx, row_data in enumerate(t1_data, start=1):
+        is_total = (row_idx == 3)
+        bg = "EBEBEB" if is_total else "FFFFFF"
         for col_idx, val in enumerate(row_data):
             cell = table_stat.cell(row_idx, col_idx)
             cell.text = val
-            set_cell_background(cell, bg_col)
-            set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
+            cell.width = col_widths_t1[col_idx]
+            set_cell_background(cell, bg)
+            set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
             p = cell.paragraphs[0]
-            if col_idx in [2, 3, 4, 5]:
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            for run in p.runs:
-                run.font.size = Pt(10)
-                if row_idx == 3:
-                    run.font.bold = True
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if col_idx >= 2 else WD_ALIGN_PARAGRAPH.LEFT
+            for r in p.runs:
+                r.font.name = 'Times New Roman'
+                r.font.size = Pt(10.5)
+                r.font.bold = is_total
+                r.font.color.rgb = RGBColor(0, 0, 0)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
-
-    doc.add_paragraph(
-        "Характеристика тестов собственного проекта (tests/test_registration.py):\n"
-        "• 22 теста полностью покрывают все правила валидации учетных данных: корректность телефонных масок, "
-        "RFC-структуру адресов электронной почты, ограничения длины и допустимых символов строковых логинов, "
-        "проверку по черному списку системных имен, а также многокритериальную валидацию пароля (кириллица, оба регистра, "
-        "наличие цифр и спецсимволов) и сквозное маскирование через детерминированный SHA-256.\n"
-        "• Все 22 теста завершаются успешно (status OK), подтверждая отсутствие регрессионных дефектов."
+    add_gost_paragraph(
+        doc,
+        "Набор тестов собственного проекта (tests/test_registration.py) содержит 22 теста и проверяет соответствие "
+        "входных параметров маскам телефонных номеров (+x-xxx-xxx-xxxx), формату адресов электронной почты по стандарту RFC, "
+        "длине и допустимым символам строковых идентификаторов, фильтрацию по черному списку служебных учетных записей, "
+        "а также обязательное наличие в пароле прописных и строчных букв кириллицы, цифр и спецсимволов. "
+        "Все 22 теста успешно завершились (статус OK), подтверждая корректность ранее реализованной бизнес-логики.",
+        space_before=8
     )
 
-    doc.add_paragraph(
-        "Характеристика тестов модуля доставки (tests/test_delivery.py):\n"
-        "• 23 теста охватывают расчет базового тарифа (200 руб.), километража (5 руб./км), весовые надбавки "
-        "(1.2 при весе > 5 кг; 1.5 при весе >= 20 кг), надбавки по категории («хрупкий» +300 руб., «опасный» +1000 руб.), "
-        "расчет календарных сроков транспортировки от фиксированной даты (2026-09-03), граничные значения (0.1 кг, 50.0 кг, "
-        "1 км, 5000 км), а также недопустимые физические параметры грузов."
+    add_gost_paragraph(
+        doc,
+        "Набор тестов модуля доставки (tests/test_delivery.py) включает 23 тестовых метода, охватывающих базовый тариф (200 руб.), "
+        "километражную составляющую (5 руб./км), весовые коэффициенты (1.2 при весе от 5 до 20 кг; 1.5 при весе от 20 до 50 кг), "
+        "дополнительные наценки по категории груза («хрупкий» +300 руб., «опасный» +1000 руб.), экспресс-доставку, расчет даты "
+        "транспортировки от фиксированной даты (2026-09-03) и граничные физические ограничения (0.1 кг, 50.0 кг, 1 км, 5000 км)."
     )
 
-    # --- 3. ПУНКТ Б ---
-    h3 = doc.add_heading("3. Пункт Б: Количество упавших тестов для модуля доставки (src/delivery.py)", level=1)
-    h3.style.font.name = 'Times New Roman'
-    h3.style.font.size = Pt(14)
-    h3.style.font.color.rgb = RGBColor(0x1F, 0x38, 0x64)
+    # =========================================================================
+    # 2 ПУНКТ Б: КОЛИЧЕСТВО УПАВШИХ ТЕСТОВ ДОСТАВКИ
+    # =========================================================================
+    add_gost_heading(doc, "2 Точное количество упавших тестов для модуля доставки (Пункт Б)")
 
-    doc.add_paragraph(
-        "При прогоне набора тестов tests/test_delivery.py на предоставленном исходном коде src/delivery.py зафиксировано:\n"
-        "• Точное количество упавших тестов: 4 (четыре).\n"
-        "• Из них с ошибкой проверки утверждения (AssertionError / FAIL): 3 теста.\n"
-        "• Из них с необработанным исключением исполнения (TypeError / ERROR): 1 тест."
+    add_gost_paragraph(
+        doc,
+        "При автоматизированном прогоне набора юнит-тестов tests/test_delivery.py на предоставленной исходной реализации "
+        "модуля src/delivery.py зафиксированы следующие результаты:"
     )
 
-    doc.add_paragraph("Список упавших тестов и характер ошибок:")
-    fails = [
-        ("test_express_delivery_cost_surcharge (FAIL)",
-         "AssertionError: 350 not greater than 700. Ожидалось, что экспресс-доставка будет стоить дороже базового тарифа, "
-         "однако в коде стоимость уменьшилась в 2 раза (скидка вместо наценки)."),
-        ("test_express_delivery_minimum_one_day (FAIL)",
-         "AssertionError: '2026-09-03' != '2026-09-04'. При коротких дистанциях срок доставки составил 0 дней (день в день с отправкой), "
-         "что нарушает ограничение на минимальный срок транспортировки."),
-        ("test_package_type_case_insensitivity (FAIL)",
-         "AssertionError: -1 != 700. Передача типа 'Обычный' с заглавной буквы привела к ложному отказу (-1, '0000-00-00') "
-         "из-за регистрозависимого сравнения."),
-        ("test_invalid_input_types_graceful_handling (ERROR)",
-         "TypeError: '<' not supported between instances of 'str' and 'float'. При передаче строки 'десять' вместо числа "
-         "произошло аварийное падение функции вместо возврата кода ошибки.")
+    add_gost_paragraph(doc, "- точное количество не прошедших (упавших) тестов: 4 (четыре) теста из 23;")
+    add_gost_paragraph(doc, "- количество падений с ошибкой валидации утверждения (AssertionError / FAIL): 3 теста;")
+    add_gost_paragraph(doc, "- количество падений с необработанным исключением исполнения (TypeError / ERROR): 1 тест.")
+
+    add_table_caption(doc, 2, "Сводный перечень упавших тестов модуля доставки src/delivery.py")
+
+    # Таблица 2 по ГОСТу
+    table_fails = doc.add_table(rows=5, cols=4)
+    table_fails.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table_fails.style = 'Table Grid'
+
+    col_widths_t2 = [Inches(0.6), Inches(2.3), Inches(1.2), Inches(2.9)]
+    t2_headers = ["№", "Название теста", "Тип ошибки", "Текст ошибки и характер сбоя"]
+
+    for col_idx, h in enumerate(t2_headers):
+        cell = table_fails.cell(0, col_idx)
+        cell.text = h
+        cell.width = col_widths_t2[col_idx]
+        set_cell_background(cell, "F2F2F2")
+        set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for r in p.runs:
+            r.font.name = 'Times New Roman'
+            r.font.size = Pt(11)
+            r.font.bold = True
+            r.font.color.rgb = RGBColor(0, 0, 0)
+
+    t2_data = [
+        (
+            "1",
+            "test_express_delivery_cost_surcharge",
+            "AssertionError (FAIL)",
+            "350 not greater than 700. Стоимость экспресс-доставки оказалась в 2 раза ниже базовой (скидка вместо наценки за срочность)."
+        ),
+        (
+            "2",
+            "test_express_delivery_minimum_one_day",
+            "AssertionError (FAIL)",
+            "'2026-09-03' != '2026-09-04'. Срок доставки составил 0 дней (день в день), что нарушает требование о минимальном сроке транспортировки."
+        ),
+        (
+            "3",
+            "test_package_type_case_insensitivity",
+            "AssertionError (FAIL)",
+            "-1 != 700. Значение 'Обычный' с заглавной буквы привело к ложному возврату ошибки из-за регистрозависимой проверки списка допустимых типов."
+        ),
+        (
+            "4",
+            "test_invalid_input_types_graceful_handling",
+            "TypeError (ERROR)",
+            "TypeError: '<' not supported between instances of 'str' and 'float'. Аварийный сбой программы при передаче строкового веса 'десять'."
+        )
     ]
 
-    for title, desc in fails:
-        p_fail = doc.add_paragraph()
-        r_f1 = p_fail.add_run(f"❌ {title}\n")
-        r_f1.font.bold = True
-        r_f1.font.color.rgb = RGBColor(0x9C, 0x00, 0x06)
-        r_f2 = p_fail.add_run(f"Детали: {desc}")
-        r_f2.font.size = Pt(11)
+    for row_idx, data in enumerate(t2_data, start=1):
+        for col_idx, text in enumerate(data):
+            cell = table_fails.cell(row_idx, col_idx)
+            cell.text = text
+            cell.width = col_widths_t2[col_idx]
+            set_cell_background(cell, "FFFFFF")
+            set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
+            p = cell.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if col_idx in [0, 2] else WD_ALIGN_PARAGRAPH.LEFT
+            for r in p.runs:
+                r.font.name = 'Times New Roman'
+                r.font.size = Pt(10)
+                if col_idx == 1:
+                    r.font.bold = True
+                r.font.color.rgb = RGBColor(0, 0, 0)
 
-    # --- 4. ПУНКТ В ---
-    h4 = doc.add_heading("4. Пункт В: Локализация аномалий и дефектов в коде src/delivery.py", level=1)
-    h4.style.font.name = 'Times New Roman'
-    h4.style.font.size = Pt(14)
-    h4.style.font.color.rgb = RGBColor(0x1F, 0x38, 0x64)
+    # =========================================================================
+    # 3 ПУНКТ В: ЛОКАЛИЗАЦИЯ ДЕФЕКТОВ
+    # =========================================================================
+    add_gost_heading(doc, "3 Локализация аномалий и дефектов в коде модуля доставки (Пункт В)")
 
-    doc.add_paragraph(
-        "В таблице ниже представлена подробная локализация обнаруженных аномалий с указанием номеров строк, "
-        "описания дефектов в логике разработчика и предложенных исправлений."
+    add_gost_paragraph(
+        doc,
+        "По результатам анализа сообщений об ошибках и трассировок стека вызовов фреймворка unittest была проведена "
+        "детальная локализация дефектов в исходном коде src/delivery.py. Для каждой обнаруженной аномалии определен "
+        "точный номер некорректно работающей строки, сформулирована причина дефекта в логике разработчика и предложен "
+        "исправленный вариант программного кода. Результаты локализации приведены в таблице 3."
     )
 
-    # Таблица локализации дефектов
+    add_table_caption(doc, 3, "Локализация дефектов в модуле src/delivery.py и варианты их исправления")
+
+    # Таблица 3 по ГОСТу
     table_bugs = doc.add_table(rows=5, cols=4)
     table_bugs.alignment = WD_TABLE_ALIGNMENT.CENTER
     table_bugs.style = 'Table Grid'
 
-    col_widths = [Inches(1.8), Inches(0.8), Inches(2.3), Inches(2.1)]
+    col_widths_t3 = [Inches(1.8), Inches(0.8), Inches(2.3), Inches(2.1)]
+    t3_headers = ["Название теста", "Строка", "Описание дефекта в логике", "Вариант исправления кода"]
 
-    b_headers = ["Название теста", "Строка", "Описание дефекта", "Вариант исправления"]
-    for i, h in enumerate(b_headers):
-        cell = table_bugs.cell(0, i)
+    for col_idx, h in enumerate(t3_headers):
+        cell = table_bugs.cell(0, col_idx)
         cell.text = h
-        set_cell_background(cell, "1F3864")
-        set_cell_margins(cell, top=120, bottom=120, left=100, right=100)
+        cell.width = col_widths_t3[col_idx]
+        set_cell_background(cell, "F2F2F2")
+        set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in p.runs:
-            run.font.bold = True
-            run.font.size = Pt(10)
-            run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        for r in p.runs:
+            r.font.name = 'Times New Roman'
+            r.font.size = Pt(10.5)
+            r.font.bold = True
+            r.font.color.rgb = RGBColor(0, 0, 0)
 
-    bugs_data = [
+    t3_data = [
         (
             "test_express_delivery_cost_surcharge",
             "36",
-            "Дефект в расчете экспресс-доставки: разработчик применил умножение на 0.5 (total_cost *= 0.5), что дает скидку 50% вместо наценки за срочность услуги.",
-            "if is_express:\n    total_cost *= 1.5\n# (или *= 2.0 / +500 руб. в зависимости от тарифа)"
+            "Искажение расчета экспресс-тарифа: разработчик применил умножение на 0.5 (total_cost *= 0.5), что дает скидку 50% вместо положенной наценки за срочность.",
+            "if is_express:\n    total_cost *= 1.5\n# Наценка 50% к стоимости"
         ),
         (
             "test_express_delivery_minimum_one_day",
             "44",
-            "Логическая ошибка деления: при days_needed == 1 (для расстояний < 1000 км) операция 1 // 2 дает 0 дней, приводя к нереалистичной моментальной доставке в день отправки.",
-            "if is_express:\n    days_needed = max(1, days_needed // 2)\n# гарантирует мин. срок 1 день"
+            "Логическая ошибка целочисленного деления: при distance < 1000 км базовый срок равен 1 дню. Операция 1 // 2 дает 0 дней, приводя к фиктивной доставке в день отправления.",
+            "if is_express:\n    days_needed = max(1, days_needed // 2)\n# Не менее 1 дня"
         ),
         (
             "test_package_type_case_insensitivity",
             "16",
-            "Отсутствие нормализации строки: проверка 'package_type not in valid_types' чувствительна к регистру. Значения 'Обычный', 'Хрупкий' приводят к ошибке.",
+            "Чувствительность к регистру символов: проверка 'package_type not in valid_types' отклоняет валидные типы 'Обычный', 'Хрупкий' с заглавной буквы.",
             "clean_type = str(package_type).strip().lower()\nif clean_type not in valid_types:\n    return -1, '0000-00-00'"
         ),
         (
             "test_invalid_input_types_graceful_handling",
             "12",
-            "Отсутствие типовой валидации: передача строковых значений или None приводит к аварийному исключению TypeError при сравнении weight < 0.1, нарушая контракт метода.",
+            "Отсутствие строгой типизации: при передаче нечисловых параметров (например, weight='десять') функция аварийно падает с TypeError при сравнении weight < 0.1.",
             "if not isinstance(weight, (int, float)) or not isinstance(distance, int) or isinstance(distance, bool):\n    return -1, '0000-00-00'"
         )
     ]
 
-    for row_idx, data in enumerate(bugs_data, start=1):
-        bg_col = "F9FAFC" if row_idx % 2 == 1 else "FFFFFF"
+    for row_idx, data in enumerate(t3_data, start=1):
         for col_idx, text in enumerate(data):
             cell = table_bugs.cell(row_idx, col_idx)
             cell.text = text
-            set_cell_background(cell, bg_col)
-            set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
+            cell.width = col_widths_t3[col_idx]
+            set_cell_background(cell, "FFFFFF")
+            set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
             p = cell.paragraphs[0]
-            if col_idx == 1:
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            for run in p.runs:
-                run.font.size = Pt(9.5)
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if col_idx == 1 else WD_ALIGN_PARAGRAPH.LEFT
+            for r in p.runs:
+                if col_idx == 3:
+                    r.font.name = 'Consolas'
+                    r.font.size = Pt(8.5)
+                else:
+                    r.font.name = 'Times New Roman'
+                    r.font.size = Pt(9.5)
                 if col_idx == 0:
-                    run.font.bold = True
-                elif col_idx == 3:
-                    run.font.name = 'Consolas'
-                    run.font.size = Pt(8.5)
+                    r.font.bold = True
+                r.font.color.rgb = RGBColor(0, 0, 0)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(12)
+    # =========================================================================
+    # 4 МЕТОДОЛОГИЯ ТЕСТ-ДИЗАЙНА
+    # =========================================================================
+    add_gost_heading(doc, "4 Методология тест-дизайна и анализ тестового покрытия")
 
-    # --- 5. ВЫВОДЫ ---
-    h5 = doc.add_heading("5. Заключение", level=1)
-    h5.style.font.name = 'Times New Roman'
-    h5.style.font.size = Pt(14)
-    h5.style.font.color.rgb = RGBColor(0x1F, 0x38, 0x64)
-
-    doc.add_paragraph(
-        "В результате выполнения лабораторной работы №2 была продемонстрирована высокая эффективность юнит-тестирования "
-        "как метода контроля качества программного обеспечения. Разработанный комплекс из 45 тестов позволил не только "
-        "подтвердить стабильность и надежность ранее разработанного собственного модуля регистрации пользователей (ЛР1), "
-        "но и быстро выявить 4 критических дефекта в стороннем модуле расчета доставки (src/delivery.py), включающие ошибки бизнес-логики, "
-        "краевые эффекты целочисленного деления и отсутствие безопасной обработки нетипизированных входных данных."
+    add_gost_paragraph(
+        doc,
+        "Для формирования полного и неизбыточного набора тестов были применены классические техники тест-дизайна, "
+        "рекомендованные международным стандартом ISTQB и отечественными методиками тестирования ПО:"
     )
+
+    add_gost_paragraph(
+        doc,
+        "1. Эквивалентное разбиение (Equivalence Partitioning). Область допустимых значений параметров разбита на непересекающиеся классы:\n"
+        "- по весу посылки: класс без наценки (0.1–5.0 кг), класс умеренной надбавки 20% (5.1–19.9 кг), класс повышенной надбавки 50% (20.0–50.0 кг);\n"
+        "- по категории груза: «обычный» (0 руб.), «хрупкий» (+300 руб.), «опасный» (+1000 руб.), недопустимый тип (возврат ошибки -1);\n"
+        "- по срочности транспортировки: стандартная доставка (is_express=False) и срочная доставка (is_express=True)."
+    )
+
+    add_gost_paragraph(
+        doc,
+        "2. Анализ граничных значений (Boundary Value Analysis). Проверены точки переходов и предельные ограничения физической модели:\n"
+        "- нижняя граница веса: 0.1 кг (валидный минимум), 0.05 кг (отказ по нижней границе), -5.0 кг (отрицательный вес);\n"
+        "- верхняя граница веса: 50.0 кг (валидный максимум), 50.1 кг (отказ по верхней границе);\n"
+        "- пороги коэффициентов тарификации: ровно 5.0 кг (граница базового тарифа), ровно 20.0 кг (граница тарифа 1.5);\n"
+        "- ограничения расстояния: 1 км (минимальная дистанция), 0 км и -100 км (недопустимые значения), 5000 км (максимальная дистанция), 5001 км (превышение лимита)."
+    )
+
+    add_gost_paragraph(
+        doc,
+        "3. Негативное тестирование и проверка отказоустойчивости (Negative & Robustness Testing). Проверена реакция "
+        "программных модулей на передачу непредусмотренных типов данных (строки вместо чисел, булевы значения, пустые структуры), "
+        "что позволило выявить дефект отсутствия предварительной верификации типов входных аргументов."
+    )
+
+    # =========================================================================
+    # ЗАКЛЮЧЕНИЕ
+    # =========================================================================
+    add_gost_heading(doc, "ЗАКЛЮЧЕНИЕ", is_structural=True)
+
+    add_gost_paragraph(
+        doc,
+        "В ходе выполнения лабораторной работы № 2 была всесторонне исследована методология юнит-тестирования программных "
+        "модулей на языке Python с применением стандартного фреймворка unittest. Разработанный тестовый комплекс из 45 тестов "
+        "позволил подтвердить 100% стабильность собственного модуля регистрации пользователей (ЛР1) и локализовать 4 критических "
+        "дефекта в предоставленном модуле расчета доставки (src/delivery.py)."
+    )
+
+    add_gost_paragraph(
+        doc,
+        "Опыт локализации ошибок продемонстрировал, что применение методов эквивалентного разбиения и анализа граничных значений "
+        "позволяет находить как смысловые ошибки бизнес-логики (скидка вместо наценки за срочность), так и граничные аномалии "
+        "целочисленного деления и исключения времени выполнения, обеспечивая высокий уровень надежности программного продукта."
+    )
+
+    # =========================================================================
+    # СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ
+    # =========================================================================
+    add_gost_heading(doc, "СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ", is_structural=True)
+
+    sources = [
+        "ГОСТ 7.32-2017. Система стандартов по информации, библиотечному и издательскому делу. Отчет о научно-исследовательской работе. Структура и правила оформления. — М.: Стандартинформ, 2018. — 32 с.",
+        "ГОСТ Р 7.0.5-2008. Система стандартов по информации, библиотечному и издательскому делу. Библиографическая ссылка. Общие требования и правила составления. — М.: Стандартинформ, 2008. — 20 с.",
+        "Документация модуля unittest в Python 3 [Электронный ресурс]. — Режим доступа: https://docs.python.org/3/library/unittest.html (дата обращения: 22.10.2026).",
+        "Куликов С. Тестирование программного обеспечения. Базовый курс. — Минск: Четыре четверти, 2020. — 312 с.",
+        "Бейзер Б. Тестирование черного ящика. Технологии функционального тестирования программного обеспечения и систем. — СПб.: Питер, 2004. — 320 с."
+    ]
+
+    for idx, s in enumerate(sources, start=1):
+        add_gost_paragraph(
+            doc,
+            f"{idx}. {s}",
+            align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+            first_line_indent=1.25,
+            line_spacing=1.5,
+            font_size=12
+        )
 
     output_path = "Отчет_ЛР2_Романов_Р_О.docx"
     doc.save(output_path)
-    print(f"Отчет успешно создан: {output_path}")
+    print(f"Отчет по ГОСТ 7.32 успешно создан: {output_path}")
 
 
 if __name__ == "__main__":
