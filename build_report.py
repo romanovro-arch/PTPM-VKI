@@ -15,7 +15,7 @@ def set_cell_background(cell, hex_color: str):
     tcPr.append(shd)
 
 
-def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+def set_cell_margins(cell, top=80, bottom=80, left=100, right=100):
     """Настройка внутренних отступов ячейки таблицы (в dxa)."""
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
@@ -36,6 +36,41 @@ def add_page_number(run):
     run._r.append(fldSimple)
 
 
+def format_table_cell(
+    cell,
+    text: str,
+    width=None,
+    bg_color=None,
+    align=WD_ALIGN_PARAGRAPH.LEFT,
+    bold: bool = False,
+    font_size: float = 10.0,
+    font_name: str = 'Times New Roman',
+    line_spacing: float = 1.15
+):
+    """
+    Заполнение ячейки таблицы с гарантированным сбросом красной строки (first_line_indent = 0)
+    и запретом выравнивания по ширине (JUSTIFY) для ВСЕХ абзацев ячейки.
+    """
+    cell.text = text
+    if width is not None:
+        cell.width = width
+    if bg_color:
+        set_cell_background(cell, bg_color)
+    set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
+
+    for p in cell.paragraphs:
+        p.alignment = align
+        p.paragraph_format.first_line_indent = Pt(0)
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.line_spacing = line_spacing
+        for r in p.runs:
+            r.font.name = font_name
+            r.font.size = Pt(font_size)
+            r.font.bold = bold
+            r.font.color.rgb = RGBColor(0, 0, 0)
+
+
 def add_gost_paragraph(
     doc: Document,
     text: str = "",
@@ -54,7 +89,7 @@ def add_gost_paragraph(
     p.paragraph_format.line_spacing = line_spacing
     p.paragraph_format.space_before = Pt(space_before)
     p.paragraph_format.space_after = Pt(space_after)
-    p.paragraph_format.first_line_indent = Cm(first_line_indent) if first_line_indent > 0 else 0
+    p.paragraph_format.first_line_indent = Cm(first_line_indent) if first_line_indent > 0 else Pt(0)
 
     if text:
         r = p.add_run(text)
@@ -67,7 +102,7 @@ def add_gost_paragraph(
     return p
 
 
-def add_gost_heading(doc: Document, title: str, level: int = 1, is_structural: bool = False):
+def add_gost_heading(doc: Document, title: str, is_structural: bool = False):
     """
     Добавление заголовка по ГОСТ 7.32-2017:
     - Структурные заголовки (ВВЕДЕНИЕ, ЗАКЛЮЧЕНИЕ): по центру, прописными буквами, без точки.
@@ -80,7 +115,7 @@ def add_gost_heading(doc: Document, title: str, level: int = 1, is_structural: b
 
     if is_structural:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.first_line_indent = 0
+        p.paragraph_format.first_line_indent = Pt(0)
         r = p.add_run(title.upper())
     else:
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -102,8 +137,8 @@ def add_table_caption(doc: Document, number: int, title: str):
     """
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p.paragraph_format.first_line_indent = 0
-    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.first_line_indent = Pt(0)
+    p.paragraph_format.space_before = Pt(12)
     p.paragraph_format.space_after = Pt(4)
     p.paragraph_format.line_spacing = 1.15
 
@@ -135,13 +170,14 @@ def create_report():
     footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     footer_p.paragraph_format.space_before = 0
     footer_p.paragraph_format.space_after = 0
+    footer_p.paragraph_format.first_line_indent = Pt(0)
     footer_run = footer_p.add_run()
     footer_run.font.name = 'Times New Roman'
     footer_run.font.size = Pt(11)
     footer_run.font.color.rgb = RGBColor(0, 0, 0)
     add_page_number(footer_run)
 
-    # Базовый стиль шрифта
+    # Базовый стиль шрифта (без принудительного отступа, чтобы не ломать таблицы)
     normal_style = doc.styles['Normal']
     normal_style.font.name = 'Times New Roman'
     normal_style.font.size = Pt(14)
@@ -149,13 +185,13 @@ def create_report():
     normal_style.paragraph_format.line_spacing = 1.5
     normal_style.paragraph_format.space_before = Pt(0)
     normal_style.paragraph_format.space_after = Pt(0)
-    normal_style.paragraph_format.first_line_indent = Cm(1.25)
-    normal_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    normal_style.paragraph_format.first_line_indent = Pt(0)
+    normal_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     # =========================================================================
     # ТИТУЛЬНЫЙ ЛИСТ (ГОСТ 7.32-2017)
     # =========================================================================
-    p_header = add_gost_paragraph(
+    add_gost_paragraph(
         doc,
         "МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ\n"
         "Федеральное государственное автономное образовательное учреждение высшего образования\n"
@@ -164,9 +200,9 @@ def create_report():
         bold=True,
         align=WD_ALIGN_PARAGRAPH.CENTER,
         first_line_indent=0,
-        line_spacing=1.0,
+        line_spacing=1.1,
         font_size=11,
-        space_after=40
+        space_after=48
     )
 
     add_gost_paragraph(
@@ -180,19 +216,19 @@ def create_report():
         first_line_indent=0,
         line_spacing=1.3,
         font_size=14,
-        space_before=30,
+        space_before=24,
         space_after=60
     )
 
     # Блок подписей студента и преподавателя (справа)
-    p_meta = add_gost_paragraph(
+    add_gost_paragraph(
         doc,
         "Выполнил:\n"
         "студент Романов Р. О.\n"
         "Специальность: 09.02.07 Информационные\n"
         "системы и программирование\n\n"
         "Проверил:\n"
-        "преподаватель (мастер практики)\n"
+        "преподаватель Кошман В. Е.\n"
         "_________________________\n",
         bold=False,
         align=WD_ALIGN_PARAGRAPH.RIGHT,
@@ -200,19 +236,20 @@ def create_report():
         line_spacing=1.15,
         font_size=12,
         space_before=20,
-        space_after=90
+        space_after=140
     )
 
-    add_gost_paragraph(
-        doc,
-        "Новосибирск, 2026",
-        bold=False,
-        align=WD_ALIGN_PARAGRAPH.CENTER,
-        first_line_indent=0,
-        line_spacing=1.0,
-        font_size=12,
-        space_before=40
-    )
+    # Город и год - строго снизу по центру без красной строки
+    p_city = doc.add_paragraph()
+    p_city.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_city.paragraph_format.first_line_indent = Pt(0)
+    p_city.paragraph_format.space_before = Pt(40)
+    p_city.paragraph_format.space_after = Pt(0)
+    p_city.paragraph_format.line_spacing = 1.0
+    r_city = p_city.add_run("Новосибирск, 2026")
+    r_city.font.name = 'Times New Roman'
+    r_city.font.size = Pt(12)
+    r_city.font.color.rgb = RGBColor(0, 0, 0)
 
     doc.add_page_break()
 
@@ -237,7 +274,7 @@ def create_report():
     )
 
     add_gost_paragraph(doc, "Для достижения поставленной цели в рамках работы решены следующие задачи:")
-    
+
     tasks = [
         "разработать комплект независимых юнит-тестов (не менее 10) для собственного программного метода валидации учетных данных из лабораторной работы № 1;",
         "проанализировать исходный код и бизнес-требования к предоставленному модулю расчета стоимости и сроков транспортировки отправлений (src/delivery.py);",
@@ -287,17 +324,15 @@ def create_report():
 
     for col_idx, h in enumerate(t1_headers):
         cell = table_stat.cell(0, col_idx)
-        cell.text = h
-        cell.width = col_widths_t1[col_idx]
-        set_cell_background(cell, "F2F2F2")
-        set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for r in p.runs:
-            r.font.name = 'Times New Roman'
-            r.font.size = Pt(11)
-            r.font.bold = True
-            r.font.color.rgb = RGBColor(0, 0, 0)
+        format_table_cell(
+            cell,
+            text=h,
+            width=col_widths_t1[col_idx],
+            bg_color="F2F2F2",
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+            bold=True,
+            font_size=10.5
+        )
 
     t1_data = [
         ("ЛР1: Регистрация пользователей", "tests/test_registration.py", "22", "22", "0", "100.0%"),
@@ -310,17 +345,16 @@ def create_report():
         bg = "EBEBEB" if is_total else "FFFFFF"
         for col_idx, val in enumerate(row_data):
             cell = table_stat.cell(row_idx, col_idx)
-            cell.text = val
-            cell.width = col_widths_t1[col_idx]
-            set_cell_background(cell, bg)
-            set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if col_idx >= 2 else WD_ALIGN_PARAGRAPH.LEFT
-            for r in p.runs:
-                r.font.name = 'Times New Roman'
-                r.font.size = Pt(10.5)
-                r.font.bold = is_total
-                r.font.color.rgb = RGBColor(0, 0, 0)
+            align = WD_ALIGN_PARAGRAPH.CENTER if col_idx >= 2 else WD_ALIGN_PARAGRAPH.LEFT
+            format_table_cell(
+                cell,
+                text=val,
+                width=col_widths_t1[col_idx],
+                bg_color=bg,
+                align=align,
+                bold=is_total,
+                font_size=10.0
+            )
 
     add_gost_paragraph(
         doc,
@@ -367,17 +401,15 @@ def create_report():
 
     for col_idx, h in enumerate(t2_headers):
         cell = table_fails.cell(0, col_idx)
-        cell.text = h
-        cell.width = col_widths_t2[col_idx]
-        set_cell_background(cell, "F2F2F2")
-        set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for r in p.runs:
-            r.font.name = 'Times New Roman'
-            r.font.size = Pt(11)
-            r.font.bold = True
-            r.font.color.rgb = RGBColor(0, 0, 0)
+        format_table_cell(
+            cell,
+            text=h,
+            width=col_widths_t2[col_idx],
+            bg_color="F2F2F2",
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+            bold=True,
+            font_size=10.5
+        )
 
     t2_data = [
         (
@@ -409,18 +441,17 @@ def create_report():
     for row_idx, data in enumerate(t2_data, start=1):
         for col_idx, text in enumerate(data):
             cell = table_fails.cell(row_idx, col_idx)
-            cell.text = text
-            cell.width = col_widths_t2[col_idx]
-            set_cell_background(cell, "FFFFFF")
-            set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if col_idx in [0, 2] else WD_ALIGN_PARAGRAPH.LEFT
-            for r in p.runs:
-                r.font.name = 'Times New Roman'
-                r.font.size = Pt(10)
-                if col_idx == 1:
-                    r.font.bold = True
-                r.font.color.rgb = RGBColor(0, 0, 0)
+            align = WD_ALIGN_PARAGRAPH.CENTER if col_idx in [0, 2] else WD_ALIGN_PARAGRAPH.LEFT
+            bold = (col_idx == 1)
+            format_table_cell(
+                cell,
+                text=text,
+                width=col_widths_t2[col_idx],
+                bg_color="FFFFFF",
+                align=align,
+                bold=bold,
+                font_size=9.5
+            )
 
     # =========================================================================
     # 3 ПУНКТ В: ЛОКАЛИЗАЦИЯ ДЕФЕКТОВ
@@ -447,17 +478,15 @@ def create_report():
 
     for col_idx, h in enumerate(t3_headers):
         cell = table_bugs.cell(0, col_idx)
-        cell.text = h
-        cell.width = col_widths_t3[col_idx]
-        set_cell_background(cell, "F2F2F2")
-        set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for r in p.runs:
-            r.font.name = 'Times New Roman'
-            r.font.size = Pt(10.5)
-            r.font.bold = True
-            r.font.color.rgb = RGBColor(0, 0, 0)
+        format_table_cell(
+            cell,
+            text=h,
+            width=col_widths_t3[col_idx],
+            bg_color="F2F2F2",
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+            bold=True,
+            font_size=10.5
+        )
 
     t3_data = [
         (
@@ -489,22 +518,20 @@ def create_report():
     for row_idx, data in enumerate(t3_data, start=1):
         for col_idx, text in enumerate(data):
             cell = table_bugs.cell(row_idx, col_idx)
-            cell.text = text
-            cell.width = col_widths_t3[col_idx]
-            set_cell_background(cell, "FFFFFF")
-            set_cell_margins(cell, top=80, bottom=80, left=100, right=100)
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if col_idx == 1 else WD_ALIGN_PARAGRAPH.LEFT
-            for r in p.runs:
-                if col_idx == 3:
-                    r.font.name = 'Consolas'
-                    r.font.size = Pt(8.5)
-                else:
-                    r.font.name = 'Times New Roman'
-                    r.font.size = Pt(9.5)
-                if col_idx == 0:
-                    r.font.bold = True
-                r.font.color.rgb = RGBColor(0, 0, 0)
+            align = WD_ALIGN_PARAGRAPH.CENTER if col_idx == 1 else WD_ALIGN_PARAGRAPH.LEFT
+            font_name = 'Consolas' if col_idx == 3 else 'Times New Roman'
+            font_size = 8.5 if col_idx == 3 else 9.5
+            bold = (col_idx == 0)
+            format_table_cell(
+                cell,
+                text=text,
+                width=col_widths_t3[col_idx],
+                bg_color="FFFFFF",
+                align=align,
+                bold=bold,
+                font_size=font_size,
+                font_name=font_name
+            )
 
     # =========================================================================
     # 4 МЕТОДОЛОГИЯ ТЕСТ-ДИЗАЙНА
