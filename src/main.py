@@ -3,10 +3,13 @@ import os
 import sys
 from typing import Tuple
 
-from auth_validator import mask_password, validate_registration
+try:
+    from .auth_validator import mask_password, validate_registration
+except ImportError:
+    from auth_validator import mask_password, validate_registration
 
 
-def setup_logging() -> None:
+def setup_logging(console: bool = True) -> None:
     os.makedirs("logs", exist_ok=True)
 
     log_format = "%(asctime)s | [%(levelname)-7s] | %(message)s"
@@ -16,14 +19,23 @@ def setup_logging() -> None:
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
+    handlers = [
+        logging.FileHandler("logs/file_txt.log", encoding="utf-8")
+    ]
+
+    if console:
+        try:
+            if hasattr(sys.stdout, "reconfigure"):
+                sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+        handlers.append(logging.StreamHandler(sys.stdout))
+
     logging.basicConfig(
         level=logging.DEBUG,
         format=log_format,
         datefmt=date_format,
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler("logs/file_txt.log", encoding="utf-8")
-        ]
+        handlers=handlers
     )
 
     logging.info("Логгер успешно сконфигурирован")

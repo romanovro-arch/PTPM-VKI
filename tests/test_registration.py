@@ -1,7 +1,21 @@
 import os
+import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+SRC_DIR = BASE_DIR / "src"
+for p in (str(SRC_DIR), str(BASE_DIR)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
 import unittest
-from auth_validator import mask_password, validate_registration
-from main import register_user, setup_logging
+
+try:
+    from auth_validator import mask_password, validate_registration
+    from main import register_user, setup_logging
+except ImportError:
+    from src.auth_validator import mask_password, validate_registration
+    from src.main import register_user, setup_logging
 
 
 class TestAuthValidator(unittest.TestCase):
@@ -141,7 +155,7 @@ class TestLoggingIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        setup_logging()
+        setup_logging(console=False)
 
     def test_logging_file_created_and_written(self):
         log_file = "logs/file_txt.log"

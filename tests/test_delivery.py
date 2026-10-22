@@ -1,5 +1,18 @@
+import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+SRC_DIR = BASE_DIR / "src"
+for p in (str(SRC_DIR), str(BASE_DIR)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
 import unittest
-from Delivery import calculate_delivery_cost
+
+try:
+    from delivery import calculate_delivery_cost
+except ImportError:
+    from src.delivery import calculate_delivery_cost
 
 
 class TestDeliveryService(unittest.TestCase):
@@ -99,7 +112,7 @@ class TestDeliveryService(unittest.TestCase):
         self.assertEqual(cost, -1)
         self.assertEqual(delivery_date, "0000-00-00")
 
-    # Тесты, выявляющие дефекты в реализации Delivery.py
+    # Тесты, выявляющие дефекты в реализации delivery.py
     def test_express_delivery_cost_surcharge(self):
         cost_std, _ = calculate_delivery_cost(2.0, 100, "обычный", False)
         cost_exp, _ = calculate_delivery_cost(2.0, 100, "обычный", True)
