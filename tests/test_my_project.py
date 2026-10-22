@@ -11,11 +11,19 @@ for p in (str(SRC_DIR), str(BASE_DIR)):
 import unittest
 
 try:
-    from auth_validator import mask_password, validate_registration
-    from main import register_user, setup_logging
+    from my_project import (
+        mask_password,
+        validate_registration,
+        register_user,
+        setup_logging,
+    )
 except ImportError:
-    from src.auth_validator import mask_password, validate_registration
-    from src.main import register_user, setup_logging
+    from src.my_project import (
+        mask_password,
+        validate_registration,
+        register_user,
+        setup_logging,
+    )
 
 
 class TestAuthValidator(unittest.TestCase):
@@ -76,7 +84,7 @@ class TestAuthValidator(unittest.TestCase):
     def test_short_string_login(self):
         for short_login in ["a", "ab", "abc", "abcd"]:
             success, message = validate_registration(short_login, "Привет1!", "Привет1!")
-            self.assertFalse(success)
+            self.assertFalse(success, f"Логин '{short_login}' короче 5 символов и должен быть отклонен")
             self.assertIn("не менее 5 символов", message)
 
     def test_string_login_forbidden_characters(self):
