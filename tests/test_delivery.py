@@ -1,19 +1,5 @@
-import sys
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-SRC_DIR = BASE_DIR / "src"
-for p in (str(SRC_DIR), str(BASE_DIR)):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
+from src.delivery_service import calculate_delivery_cost
 import unittest
-
-try:
-    from delivery_service import calculate_delivery_cost
-except ImportError:
-    from src.delivery_service import calculate_delivery_cost
-
 
 class TestDeliveryService(unittest.TestCase):
 

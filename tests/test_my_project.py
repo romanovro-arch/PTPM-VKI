@@ -1,30 +1,6 @@
-import os
-import sys
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-SRC_DIR = BASE_DIR / "src"
-for p in (str(SRC_DIR), str(BASE_DIR)):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
+from src.my_project import mask_password, validate_registration, register_user, setup_logging
 import unittest
-
-try:
-    from my_project import (
-        mask_password,
-        validate_registration,
-        register_user,
-        setup_logging,
-    )
-except ImportError:
-    from src.my_project import (
-        mask_password,
-        validate_registration,
-        register_user,
-        setup_logging,
-    )
-
+import os
 
 class TestAuthValidator(unittest.TestCase):
 
