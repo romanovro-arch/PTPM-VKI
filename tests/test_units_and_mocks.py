@@ -3,30 +3,14 @@
 Проверяют изоляцию компонентов, эмуляцию ввода input() и передачу данных сторонней службе.
 """
 
-import sys
-from pathlib import Path
+import unittest
 from unittest.mock import MagicMock, patch
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-SRC_DIR = BASE_DIR / "src"
-for p in (str(SRC_DIR), str(BASE_DIR)):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-import unittest
-
-try:
-    from controller import RegistrationController
-    from database import DatabaseManager
-    from external_service import EmailNotificationService, ExternalService
-    from registration_validator import RegistrationValidator
-    from user_interface import ConsoleUserInterface, UserInterface
-except ImportError:
-    from src.controller import RegistrationController
-    from src.database import DatabaseManager
-    from src.external_service import EmailNotificationService, ExternalService
-    from src.registration_validator import RegistrationValidator
-    from src.user_interface import ConsoleUserInterface, UserInterface
+from src.controller import RegistrationController
+from src.database import DatabaseManager
+from src.external_service import EmailNotificationService, ExternalService
+from src.registration_validator import RegistrationValidator
+from src.user_interface import ConsoleUserInterface, UserInterface
 
 
 class TestUnitsAndMocks(unittest.TestCase):

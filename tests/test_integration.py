@@ -4,30 +4,14 @@
 и имитацией пользовательского ввода / сторонней зависимости.
 """
 
-import sys
-from pathlib import Path
+import unittest
 from unittest.mock import MagicMock
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-SRC_DIR = BASE_DIR / "src"
-for p in (str(SRC_DIR), str(BASE_DIR)):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-import unittest
-
-try:
-    from controller import RegistrationController
-    from database import DatabaseManager
-    from external_service import EmailNotificationService
-    from registration_validator import RegistrationValidator
-    from user_interface import UserInterface
-except ImportError:
-    from src.controller import RegistrationController
-    from src.database import DatabaseManager
-    from src.external_service import EmailNotificationService
-    from src.registration_validator import RegistrationValidator
-    from src.user_interface import UserInterface
+from src.controller import RegistrationController
+from src.database import DatabaseManager
+from src.external_service import EmailNotificationService
+from src.registration_validator import RegistrationValidator
+from src.user_interface import UserInterface
 
 
 class TestRegistrationIntegration(unittest.TestCase):
