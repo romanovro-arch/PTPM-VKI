@@ -491,25 +491,25 @@ def create_report():
     t3_data = [
         (
             "test_express_delivery_cost_surcharge",
-            "36",
+            "35",
             "Искажение расчета экспресс-тарифа: разработчик применил умножение на 0.5 (total_cost *= 0.5), что дает скидку 50% вместо положенной наценки за срочность.",
             "if is_express:\n    total_cost *= 1.5\n# Наценка 50% к стоимости"
         ),
         (
             "test_express_delivery_minimum_one_day",
-            "44",
+            "43",
             "Логическая ошибка целочисленного деления: при distance < 1000 км базовый срок равен 1 дню. Операция 1 // 2 дает 0 дней, приводя к фиктивной доставке в день отправления.",
             "if is_express:\n    days_needed = max(1, days_needed // 2)\n# Не менее 1 дня"
         ),
         (
             "test_package_type_case_insensitivity",
-            "16",
+            "15",
             "Чувствительность к регистру символов: проверка 'package_type not in valid_types' отклоняет валидные типы 'Обычный', 'Хрупкий' с заглавной буквы.",
             "clean_type = str(package_type).strip().lower()\nif clean_type not in valid_types:\n    return -1, '0000-00-00'"
         ),
         (
             "test_invalid_input_types_graceful_handling",
-            "12",
+            "11",
             "Отсутствие строгой типизации: при передаче нечисловых параметров (например, weight='десять') функция аварийно падает с TypeError при сравнении weight < 0.1.",
             "if not isinstance(weight, (int, float)) or not isinstance(distance, int) or isinstance(distance, bool):\n    return -1, '0000-00-00'"
         )
