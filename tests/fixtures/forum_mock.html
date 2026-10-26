@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Тестовый Форум - Обсуждение Python</title>
+</head>
+<body>
+    <div class="forum-header">
+        <h1>Ветка обсуждения: Разработка парсеров и автотестов</h1>
+    </div>
+
+    <div class="forum-topic" id="topic-42">
+        <div class="post" data-post-id="101" id="post-101">
+            <div class="post-header">
+                <span class="author">alex_dev</span>
+                <span class="post-date">2026-10-25 10:15</span>
+            </div>
+            <div class="post-message">
+                <p>Привет всем! Кто подскажет, какую библиотеку лучше выбрать для парсинга HTML: <strong>BeautifulSoup</strong> или <em>Scrapy</em>?</p>
+            </div>
+        </div>
+
+        <div class="post" data-post-id="102" id="post-102">
+            <div class="post-header">
+                <span class="author">maria_qa</span>
+                <span class="post-date">2026-10-25 10:20</span>
+            </div>
+            <div class="post-message">
+                <p>Для небольших задач и тестов связка <code>requests</code> + <code>BeautifulSoup4</code> идеальна!</p>
+            </div>
+        </div>
+
+        <div class="post" data-post-id="103" id="post-103">
+            <div class="post-header">
+                <span class="author">alex_dev</span>
+                <span class="post-date">2026-10-25 10:35</span>
+            </div>
+            <div class="post-message">
+                <p>Спасибо за совет! А как изолировать тесты от реальной сети?</p>
+            </div>
+        </div>
+
+        <div class="post" data-post-id="104" id="post-104">
+            <div class="post-header">
+                <span class="author">senior_lead</span>
+                <span class="post-date">2026-10-25 11:00</span>
+            </div>
+            <div class="post-message">
+                <p>Используйте <code>unittest.mock.patch</code> для подмены сетевых вызовов и сохраняйте HTML в локальные фикстуры.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
