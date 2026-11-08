@@ -176,6 +176,19 @@ class TestForumParser(unittest.TestCase):
             ignored_count = self.parser.save_to_db(parsed, repo, ignore_duplicates=True)
             self.assertEqual(ignored_count, 0)
 
+    def test_parse_html_habr_structure(self):
+        habr_html = """
+        <article class="tm-comment-thread__comment" id="30613184">
+            <a class="tm-user-info__username">habr_author</a>
+            <div class="tm-comment__body-content"><p>Habr comment text</p></div>
+        </article>
+        """
+        results = self.parser.parse_html(habr_html)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], 30613184)
+        self.assertEqual(results[0]["name"], "habr_author")
+        self.assertEqual(results[0]["message"], "<p>Habr comment text</p>")
+
     def test_save_to_db_invalid_arguments_raise_type_error(self):
         parsed = self.parser.parse_html(self.fixture_html)
         with self.assertRaises(TypeError):

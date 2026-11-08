@@ -38,7 +38,9 @@ class ForumParser:
         except Exception:
             soup = BeautifulSoup(html_content, "html.parser")
 
-        posts = soup.select(".post, .forum-post, article.post")
+        posts = soup.select(
+            ".post, .forum-post, article.post, .tm-comment-thread__comment, article.tm-comment-thread__comment"
+        )
         results: List[Dict[str, Any]] = []
 
         for post in posts:
@@ -57,14 +59,18 @@ class ForumParser:
             except (ValueError, TypeError):
                 continue
 
-            author_elem = post.select_one(".author, .username, .user-name")
+            author_elem = post.select_one(
+                ".author, .username, .user-name, .tm-user-info__username, a.tm-user-info__username"
+            )
             if not author_elem:
                 continue
             username = author_elem.get_text(strip=True)
             if not username:
                 continue
 
-            message_elem = post.select_one(".post-message, .message, .message-text, .post-text")
+            message_elem = post.select_one(
+                ".post-message, .message, .message-text, .post-text, .tm-comment__body-content, .article-formatted-body"
+            )
             if not message_elem:
                 continue
 
@@ -72,9 +78,14 @@ class ForumParser:
             if not inner_html:
                 continue
 
+            if len(inner_html) > 8096:
+                inner_html = inner_html[:8096]
+
+            clean_username = username[:256]
+
             results.append({
                 "id": comment_id,
-                "name": username,
+                "name": clean_username,
                 "message": inner_html
             })
 
