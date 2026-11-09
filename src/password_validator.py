@@ -5,7 +5,7 @@ def validate_password(password: str) -> bool:
     if ' ' in password:
         raise ValueError("Пароль не должен содержать пробелы")
 
-    if not (8 <= len(password) <= 20):
+    if len(password) > 20 or 8 > len(password):
         return False
 
     allowed_specials = set("!@#$%^&*")
