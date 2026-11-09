@@ -8,7 +8,6 @@ class TestPasswordValidator(unittest.TestCase):
     def test_valid_password_cyrillic(self):
         self.assertTrue(validate_password("ПарольТест9#"))
 
-    # 2. Граничные значения длины (BVA)
     def test_boundary_length_7(self):
         self.assertFalse(validate_password("Pass1!a"))
 
