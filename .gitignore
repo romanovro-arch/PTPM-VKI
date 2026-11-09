@@ -1,1 +1,8 @@
 .coverage
+
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+.coverage
+htmlcov/
